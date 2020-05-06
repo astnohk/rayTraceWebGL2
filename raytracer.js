@@ -46,6 +46,10 @@ const fsSource =
 
 	out vec4 fragmentColor;
 
+	float random(vec2 v) {
+		return fract(sin(dot(v, vec2(12.9898, 78.233))) * 43758.5453);
+	}
+
 	struct TraceData {
 		vec3 origin;
 		vec3 ray;
@@ -56,7 +60,7 @@ const fsSource =
 	// args:
 	//     origin: start point of ray
 	//     ray: direction of ray (should be normalized)
-	TraceData traceRay(const TraceData traceStart) {
+	TraceData traceRay(const TraceData traceStart, const float seed) {
 		const float d_max = 100000.0;
 		TraceData trace = traceStart;
 
@@ -94,30 +98,47 @@ const fsSource =
 		if (r_min_sphere <= r_min_wall) {
 			vec3 n = normalize(sphereReflectPoint - spherePosition);
 			trace.origin = sphereReflectPoint;
-			trace.ray = reflect(traceStart.ray, n);
+			trace.ray = normalize(
+			    reflect(traceStart.ray, n)
+			    + 0.5 * vec3(
+				random(vec2(traceStart.ray.x, seed)),
+				random(vec2(traceStart.ray.y, seed)),
+				random(vec2(traceStart.ray.z, seed)))
+			    );
 			trace.col += vec3(0.0, 0.0, 0.0) * traceStart.reflection;
 			trace.reflection *= vec3(0.4 + 0.5 * length(cross(trace.ray, n)));
 		} else {
 			trace.origin = vec3(0.0);
 			trace.ray = vec3(0.0);
 			vec3 col_wall = vec3(0.0);
+			vec3 normal = vec3(0.0);
 			// Top
 			col_wall += step(0.0, r_min_wall - r_top) * vec3(0.9, 0.0, 0.0);
 			trace.ray += step(0.0, r_min_wall - r_top) * reflect(traceStart.ray, vec3(0.0, -1.0, 0.0));
+			normal += step(0.0, r_min_wall - r_top) * vec3(0.0, -1.0, 0.0);
 			// Bottom
 			col_wall += step(0.0, r_min_wall - r_bottom) * vec3(0.9, 0.9, 0.0);
 			trace.ray += step(0.0, r_min_wall - r_bottom) * reflect(traceStart.ray, vec3(0.0, 1.0, 0.0));
+			normal += step(0.0, r_min_wall - r_top) * vec3(0.0, 1.0, 0.0);
 			// Left
 			col_wall += step(0.0, r_min_wall - r_left) * vec3(0.0, 0.9, 0.0);
 			trace.ray += step(0.0, r_min_wall - r_left) * reflect(traceStart.ray, vec3(1.0, 0.0, 0.0));
+			normal += step(0.0, r_min_wall - r_top) * vec3(1.0, 0.0, 0.0);
 			// Right
 			col_wall += step(0.0, r_min_wall - r_right) * vec3(0.0, 0.0, 0.9);
 			trace.ray += step(0.0, r_min_wall - r_right) * reflect(traceStart.ray, vec3(-1.0, 0.0, 0.0));
+			normal += step(0.0, r_min_wall - r_top) * vec3(-1.0, 0.0, 0.0);
 			// result
 			trace.origin = traceStart.ray * r_min_wall + traceStart.origin;
-			trace.ray = normalize(trace.ray);
+			trace.ray = normalize(
+			    trace.ray
+			    + 0.0625 * vec3(
+				random(vec2(traceStart.ray.x, seed)),
+				random(vec2(traceStart.ray.y, seed)),
+				random(vec2(traceStart.ray.z, seed)))
+			    );
 			trace.col += col_wall * traceStart.reflection;
-			trace.reflection *= vec3(0.2);
+			trace.reflection *= 0.8 * vec3(0.5 + 0.5 * pow(length(cross(trace.ray, normal)), 50.0));
 		}
 
 		// saturation of color
@@ -126,7 +147,7 @@ const fsSource =
 	}
 
 	void main(void) {
-		const float max_iter = 4.0;
+		const float max_iter = 64.0;
 		const int max_bound = 4;
 
 		vec3 color = vec3(0.0);
@@ -137,7 +158,7 @@ const fsSource =
 			trace.col = vec3(0.0);
 			trace.reflection = vec3(1.0);
 			for (int i = 0; i < max_bound; i++) {
-				trace = traceRay(trace);
+				trace = traceRay(trace, s);
 				// Offset for eliminate reflection on same surface
 				trace.origin += trace.ray * 0.00001;
 			}
