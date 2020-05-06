@@ -100,7 +100,7 @@ const fsSource =
 			trace.origin = sphereReflectPoint;
 			trace.ray = normalize(
 			    reflect(traceStart.ray, n)
-			    + 0.5 * vec3(
+			    + 0.25 * vec3(
 				random(vec2(traceStart.ray.x, seed)),
 				random(vec2(traceStart.ray.y, seed)),
 				random(vec2(traceStart.ray.z, seed)))
