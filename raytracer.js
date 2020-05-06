@@ -1,7 +1,7 @@
 "use strict";
 
 var cameraPosition = [ 0.0, 0.0, -1.0 ];
-var wallOffset = 1.0;
+var wallOffset = 0.8;
 var spherePositions = [
     [ 0.8, 0.0, 2.7 ],
     ];
@@ -57,67 +57,93 @@ const fsSource =
 	//     origin: start point of ray
 	//     ray: direction of ray (should be normalized)
 	TraceData traceRay(const TraceData traceStart) {
+		const float d_max = 100000.0;
 		TraceData trace = traceStart;
+
 		vec3 sphereVector = spherePosition - traceStart.origin;
-		vec3 r = cross(sphereVector, traceStart.ray);
-		if (dot(sphereVector, traceStart.ray) * step(-sphereRadius, -length(r)) > 0.0) {
-			// sphere hit
-			trace.origin = (dot(sphereVector, traceStart.ray) - sqrt(sphereRadius * sphereRadius - r * r)) * traceStart.ray + traceStart.origin;
-			vec3 n = normalize(trace.origin - spherePosition);
+		vec3 r_sphereRay = cross(sphereVector, traceStart.ray);
+		////
+		// sphere hit
+		////
+		vec3 sphereReflectPoint =
+		    (dot(sphereVector, traceStart.ray) - sqrt(sphereRadius * sphereRadius - r_sphereRay * r_sphereRay))
+		    * traceStart.ray + traceStart.origin;
+		float r_min_sphere = mix(
+		    length(sphereReflectPoint - traceStart.origin),
+		    d_max,
+		    step(0.0, -dot(sphereVector, traceStart.ray) * step(-sphereRadius, -length(r_sphereRay))));
+
+		////
+		// wall hit
+		////
+		float r_top = abs(wallOffset - traceStart.origin.y) / dot(vec3(0.0, 1.0, 0.0), traceStart.ray);
+		r_top += (1.0 - step(0.0, r_top)) * d_max;
+		float r_bottom = abs(-wallOffset - traceStart.origin.y) / dot(vec3(0.0, -1.0, 0.0), traceStart.ray);
+		r_bottom += (1.0 - step(0.0, r_bottom)) * d_max;
+		float r_left = abs(-wallOffset - traceStart.origin.x) / dot(vec3(-1.0, 0.0, 0.0), traceStart.ray);
+		r_left += (1.0 - step(0.0, r_left)) * d_max;
+		float r_right = abs(wallOffset - traceStart.origin.x) / dot(vec3(1.0, 0.0, 0.0), traceStart.ray);
+		r_right += (1.0 - step(0.0, r_right)) * d_max;
+		float r_min_wall = min(r_top, r_bottom);
+		r_min_wall = min(r_left, r_min_wall);
+		r_min_wall = min(r_right, r_min_wall);
+
+		////
+		// calculate color and reflected ray
+		////
+		if (r_min_sphere <= r_min_wall) {
+			vec3 n = normalize(sphereReflectPoint - spherePosition);
+			trace.origin = sphereReflectPoint;
 			trace.ray = reflect(traceStart.ray, n);
 			trace.col += vec3(0.0, 0.0, 0.0) * traceStart.reflection;
 			trace.reflection *= vec3(0.4 + 0.5 * length(cross(trace.ray, n)));
 		} else {
-			// wall hit
-			float r_top = abs(wallOffset - traceStart.origin.y) / dot(vec3(0.0, 1.0, 0.0), traceStart.ray);
-			r_top += (1.0 - step(0.0, r_top)) * 10000.0;
-			float r_bottom = abs(-wallOffset - traceStart.origin.y) / dot(vec3(0.0, -1.0, 0.0), traceStart.ray);
-			r_bottom += (1.0 - step(0.0, r_bottom)) * 10000.0;
-			float r_left = abs(-wallOffset - traceStart.origin.x) / dot(vec3(-1.0, 0.0, 0.0), traceStart.ray);
-			r_left += (1.0 - step(0.0, r_left)) * 10000.0;
-			float r_right = abs(wallOffset - traceStart.origin.x) / dot(vec3(1.0, 0.0, 0.0), traceStart.ray);
-			r_right += (1.0 - step(0.0, r_right)) * 10000.0;
-			float r_min = min(r_top, r_bottom);
-			r_min = min(r_left, r_min);
-			r_min = min(r_right, r_min);
-
 			trace.origin = vec3(0.0);
 			trace.ray = vec3(0.0);
 			vec3 col_wall = vec3(0.0);
 			// Top
-			col_wall += step(0.0, r_min - r_top) * vec3(1.0, 0.0, 0.0);
-			trace.ray += step(0.0, r_min - r_top) * reflect(traceStart.ray, vec3(0.0, -1.0, 0.0));
+			col_wall += step(0.0, r_min_wall - r_top) * vec3(0.9, 0.0, 0.0);
+			trace.ray += step(0.0, r_min_wall - r_top) * reflect(traceStart.ray, vec3(0.0, -1.0, 0.0));
 			// Bottom
-			col_wall += step(0.0, r_min - r_bottom) * vec3(1.0, 1.0, 0.0);
-			trace.ray += step(0.0, r_min - r_bottom) * reflect(traceStart.ray, vec3(0.0, 1.0, 0.0));
+			col_wall += step(0.0, r_min_wall - r_bottom) * vec3(0.9, 0.9, 0.0);
+			trace.ray += step(0.0, r_min_wall - r_bottom) * reflect(traceStart.ray, vec3(0.0, 1.0, 0.0));
 			// Left
-			col_wall += step(0.0, r_min - r_left) * vec3(0.0, 1.0, 0.0);
-			trace.ray += step(0.0, r_min - r_left) * reflect(traceStart.ray, vec3(1.0, 0.0, 0.0));
+			col_wall += step(0.0, r_min_wall - r_left) * vec3(0.0, 0.9, 0.0);
+			trace.ray += step(0.0, r_min_wall - r_left) * reflect(traceStart.ray, vec3(1.0, 0.0, 0.0));
 			// Right
-			col_wall += step(0.0, r_min - r_right) * vec3(0.0, 0.0, 1.0);
-			trace.ray += step(0.0, r_min - r_right) * reflect(traceStart.ray, vec3(-1.0, 0.0, 0.0));
+			col_wall += step(0.0, r_min_wall - r_right) * vec3(0.0, 0.0, 0.9);
+			trace.ray += step(0.0, r_min_wall - r_right) * reflect(traceStart.ray, vec3(-1.0, 0.0, 0.0));
 			// result
+			trace.origin = traceStart.ray * r_min_wall + traceStart.origin;
 			trace.ray = normalize(trace.ray);
-			trace.origin = traceStart.ray * r_min;
 			trace.col += col_wall * traceStart.reflection;
-			trace.reflection *= vec3(0.3);
+			trace.reflection *= vec3(0.2);
 		}
+
+		// saturation of color
 		trace.col = min(trace.col, 1.0);
 		return trace;
 	}
 
 	void main(void) {
-		TraceData trace;
-		int max_iter = 2;
+		const float max_iter = 4.0;
+		const int max_bound = 4;
 
-		trace.origin = cameraPosition;
-		trace.ray = normalize(vTextureCoord);
-		trace.col = vec3(0.0);
-		trace.reflection = vec3(1.0);
-		for (int i = 0; i < max_iter; i++) {
-			trace = traceRay(trace);
+		vec3 color = vec3(0.0);
+		for (float s = 0.0; s < max_iter; s += 1.0) {
+			TraceData trace;
+			trace.origin = cameraPosition;
+			trace.ray = normalize(vTextureCoord);
+			trace.col = vec3(0.0);
+			trace.reflection = vec3(1.0);
+			for (int i = 0; i < max_bound; i++) {
+				trace = traceRay(trace);
+				// Offset for eliminate reflection on same surface
+				trace.origin += trace.ray * 0.00001;
+			}
+			color += trace.col / max_iter;
 		}
-		fragmentColor = vec4(trace.col, 1.0);
+		fragmentColor = vec4(color, 1.0);
 	}
 `;
 
@@ -168,7 +194,8 @@ function main() {
 	let count = 0;
 	function render(now) {
 		cameraPosition[0] = Math.sin(2.0 * Math.PI * count / 300) * 0.1;
-		spherePositions[0][1] = Math.sin(2.0 * Math.PI * count / 117) * 0.2;
+		//spherePositions[0][0] = Math.cos(2.0 * Math.PI * count / 217) * 0.9;
+		spherePositions[0][1] = Math.sin(2.0 * Math.PI * count / 217) * 0.2;
 		++count;
 		drawScene(gl, renderProgramInfo, textures, screenBuffers);
 
