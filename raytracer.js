@@ -22,12 +22,10 @@ const vsSource =
 	in vec4 vertexPosition;
 	in vec3 vertexTextureCoord;
 
-	out vec4 vPosition;
 	out vec3 vTextureCoord;
 
 	void main(void) {
-		vPosition = vertexPosition;
-		gl_Position = vPosition;
+		gl_Position = vertexPosition;
 		vTextureCoord = vertexTextureCoord;
 	}
 `;
@@ -48,7 +46,6 @@ const fsSource =
 	//uniform vec3 sphereColor;
 	uniform float wallOffset; // the distance from center
 
-	in vec4 vPosition;
 	in vec3 vTextureCoord;
 
 	out vec4 fragmentColor;
