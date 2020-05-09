@@ -4,9 +4,13 @@ var cameraPosition = [ 0.0, 0.0, -1.0 ];
 var wallOffset = 0.8;
 var spherePositions = [
     [ 0.8, 0.0, 2.7 ],
+    [ 0.0, -0.3, 2.9 ],
+    [ -0.3, 0.0, 2.3 ],
     ];
 var sphereRadiuses = [
     0.3,
+    0.4,
+    0.17,
     ];
 
 //// Render view
@@ -31,14 +35,17 @@ const vsSource =
 const fsSource =
 	`#version 300 es
 	#define M_PI 3.1415926535897932384626433832795
+	#define NUM_SPHERE 16
 
 	precision highp float;
 
 	uniform sampler2D texture;
 	uniform mat3 textureMatrix;
 	uniform vec3 cameraPosition;
-	uniform vec3 spherePosition;
-	uniform float sphereRadius;
+	uniform int numberOfSphere;
+	uniform vec3 spherePosition[NUM_SPHERE];
+	uniform float sphereRadius[NUM_SPHERE];
+	//uniform vec3 sphereColor;
 	uniform float wallOffset; // the distance from center
 
 	in vec4 vPosition;
@@ -62,20 +69,41 @@ const fsSource =
 	//     ray: direction of ray (should be normalized)
 	TraceData traceRay(const TraceData traceStart, const float seed) {
 		const float d_max = 100000.0;
-		TraceData trace = traceStart;
 
-		vec3 sphereVector = spherePosition - traceStart.origin;
-		vec3 r_sphereRay = cross(sphereVector, traceStart.ray);
 		////
 		// sphere hit
 		////
-		vec3 sphereReflectPoint =
-		    (dot(sphereVector, traceStart.ray) - sqrt(sphereRadius * sphereRadius - r_sphereRay * r_sphereRay))
-		    * traceStart.ray + traceStart.origin;
-		float r_min_sphere = mix(
-		    length(sphereReflectPoint - traceStart.origin),
-		    d_max,
-		    step(0.0, -dot(sphereVector, traceStart.ray) * step(-sphereRadius, -length(r_sphereRay))));
+		vec3 spherePosition_min = vec3(0.0);
+		vec3 sphereReflectPoint_min = vec3(0.0);
+		float r_min_sphere = d_max;
+		for (int n = 0; n < numberOfSphere; n++) {
+			vec3 sphereVector = spherePosition[n] - traceStart.origin;
+			vec3 r_sphereRay = cross(sphereVector, traceStart.ray);
+			vec3 sphereReflectPoint =
+			    (dot(sphereVector, traceStart.ray) - sqrt(sphereRadius[n] * sphereRadius[n] - r_sphereRay * r_sphereRay))
+			    * traceStart.ray + traceStart.origin;
+			float r_min = mix(
+			    length(sphereReflectPoint - traceStart.origin),
+			    d_max,
+			    step(0.0, -dot(sphereVector, traceStart.ray) * step(-sphereRadius[n], -length(r_sphereRay))));
+			// choose only nearest one
+			r_min_sphere = min(r_min, r_min_sphere);
+			if (r_min == r_min_sphere) {
+				spherePosition_min = spherePosition[n];
+				sphereReflectPoint_min = sphereReflectPoint;
+			}
+			/*
+			float cond = step(0.0, r_min_sphere - r_min);
+			spherePosition_min = mix(
+			    spherePosition_min,
+			    spherePosition[n],
+			    cond);
+			sphereReflectPoint_min = mix(
+			    sphereReflectPoint_min,
+			    sphereReflectPoint,
+			    cond);
+			*/
+		}
 
 		////
 		// wall hit
@@ -95,9 +123,10 @@ const fsSource =
 		////
 		// calculate color and reflected ray
 		////
+		TraceData trace = traceStart;
 		if (r_min_sphere <= r_min_wall) {
-			vec3 n = normalize(sphereReflectPoint - spherePosition);
-			trace.origin = sphereReflectPoint;
+			vec3 n = normalize(sphereReflectPoint_min - spherePosition_min);
+			trace.origin = sphereReflectPoint_min;
 			trace.ray = normalize(
 			    reflect(traceStart.ray, n)
 			    + 0.25 * vec3(
@@ -112,22 +141,31 @@ const fsSource =
 			trace.ray = vec3(0.0);
 			vec3 col_wall = vec3(0.0);
 			vec3 normal = vec3(0.0);
+			float reflection = 0.0;
 			// Top
-			col_wall += step(0.0, r_min_wall - r_top) * vec3(0.9, 0.0, 0.0);
-			trace.ray += step(0.0, r_min_wall - r_top) * reflect(traceStart.ray, vec3(0.0, -1.0, 0.0));
-			normal += step(0.0, r_min_wall - r_top) * vec3(0.0, -1.0, 0.0);
+			float cond = step(0.0, r_min_wall - r_top);
+			col_wall += cond * vec3(0.9, 0.0, 0.0);
+			trace.ray += cond * reflect(traceStart.ray, vec3(0.0, -1.0, 0.0));
+			normal += cond * vec3(0.0, -1.0, 0.0);
+			reflection += cond * 0.8;
 			// Bottom
-			col_wall += step(0.0, r_min_wall - r_bottom) * vec3(0.9, 0.9, 0.0);
-			trace.ray += step(0.0, r_min_wall - r_bottom) * reflect(traceStart.ray, vec3(0.0, 1.0, 0.0));
-			normal += step(0.0, r_min_wall - r_top) * vec3(0.0, 1.0, 0.0);
+			cond = step(0.0, r_min_wall - r_bottom);
+			//col_wall += cond * vec3(0.9, 0.9, 0.0);
+			trace.ray += cond * reflect(traceStart.ray, vec3(0.0, 1.0, 0.0));
+			normal += cond * vec3(0.0, 1.0, 0.0);
+			reflection += cond * 0.3;
 			// Left
-			col_wall += step(0.0, r_min_wall - r_left) * vec3(0.0, 0.9, 0.0);
-			trace.ray += step(0.0, r_min_wall - r_left) * reflect(traceStart.ray, vec3(1.0, 0.0, 0.0));
-			normal += step(0.0, r_min_wall - r_top) * vec3(1.0, 0.0, 0.0);
+			cond = step(0.0, r_min_wall - r_left);
+			col_wall += cond * vec3(0.0, 0.9, 0.0);
+			trace.ray += cond * reflect(traceStart.ray, vec3(1.0, 0.0, 0.0));
+			normal += cond * vec3(1.0, 0.0, 0.0);
+			reflection += cond * 0.8;
 			// Right
-			col_wall += step(0.0, r_min_wall - r_right) * vec3(0.0, 0.0, 0.9);
-			trace.ray += step(0.0, r_min_wall - r_right) * reflect(traceStart.ray, vec3(-1.0, 0.0, 0.0));
-			normal += step(0.0, r_min_wall - r_top) * vec3(-1.0, 0.0, 0.0);
+			cond = step(0.0, r_min_wall - r_right);
+			col_wall += cond * vec3(0.0, 0.0, 0.9);
+			trace.ray += cond * reflect(traceStart.ray, vec3(-1.0, 0.0, 0.0));
+			normal += cond * vec3(-1.0, 0.0, 0.0);
+			reflection += cond * 0.8;
 			// result
 			trace.origin = traceStart.ray * r_min_wall + traceStart.origin;
 			trace.ray = normalize(
@@ -138,7 +176,7 @@ const fsSource =
 				random(vec2(traceStart.ray.z, seed)))
 			    );
 			trace.col += col_wall * traceStart.reflection;
-			trace.reflection *= 0.8 * vec3(0.5 + 0.5 * pow(length(cross(trace.ray, normal)), 50.0));
+			trace.reflection *= reflection * vec3(0.5 + 0.5 * pow(length(cross(trace.ray, normal)), 50.0));
 		}
 
 		// saturation of color
@@ -202,8 +240,13 @@ function main() {
 			textureMatrix: gl.getUniformLocation(renderShaderProgram, 'textureMatrix'),
 			cameraPosition: gl.getUniformLocation(renderShaderProgram, 'cameraPosition'),
 			wallOffset: gl.getUniformLocation(renderShaderProgram, 'wallOffset'),
-			spherePosition: gl.getUniformLocation(renderShaderProgram, 'spherePosition'),
-			sphereRadius: gl.getUniformLocation(renderShaderProgram, 'sphereRadius'),
+			numberOfSphere: gl.getUniformLocation(renderShaderProgram, 'numberOfSphere'),
+			spherePosition: spherePositions.map((x, ind) => {
+				return gl.getUniformLocation(renderShaderProgram, 'spherePosition[' + ind + ']');
+			    }),
+			sphereRadius: sphereRadiuses.map((x, ind) => {
+				return gl.getUniformLocation(renderShaderProgram, 'sphereRadius[' + ind + ']');
+			    }),
 		},
 	};
 
@@ -355,24 +398,29 @@ function drawScene(gl, renderProgramInfo, textures, screenBuffers)
 	textureMatrix[6] = 0.5; textureMatrix[7] = 0.5; // Shift
 
 	gl.uniform1i(
-		renderProgramInfo.uniformLocations.texture,
-		0);
+	    renderProgramInfo.uniformLocations.texture,
+	    0);
 	gl.uniformMatrix3fv(
-		renderProgramInfo.uniformLocations.textureMatrix,
-		false,
-		textureMatrix);
+	    renderProgramInfo.uniformLocations.textureMatrix,
+	    false,
+	    textureMatrix);
 	gl.uniform3fv(
-		renderProgramInfo.uniformLocations.cameraPosition,
-		cameraPosition);
+	    renderProgramInfo.uniformLocations.cameraPosition,
+	    cameraPosition);
 	gl.uniform1f(
-		renderProgramInfo.uniformLocations.wallOffset,
-		wallOffset);
-	gl.uniform3fv(
-		renderProgramInfo.uniformLocations.spherePosition,
-		spherePositions[0]);
-	gl.uniform1f(
-		renderProgramInfo.uniformLocations.sphereRadius,
-		sphereRadiuses[0]);
+	    renderProgramInfo.uniformLocations.wallOffset,
+	    wallOffset);
+	gl.uniform1i(
+	    renderProgramInfo.uniformLocations.numberOfSphere,
+	    Math.min(spherePositions.length, sphereRadiuses.length));
+	for (let i = 0; i < spherePositions.length; i++) {
+		gl.uniform3fv(
+		    renderProgramInfo.uniformLocations.spherePosition[i],
+		    spherePositions[i]);
+		gl.uniform1f(
+		    renderProgramInfo.uniformLocations.sphereRadius[i],
+		    sphereRadiuses[i]);
+	}
 
 	enableAttribute(gl, renderProgramInfo.attribLocations, screenBuffers);
 	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, screenBuffers.indices);
