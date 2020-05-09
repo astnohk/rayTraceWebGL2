@@ -15,43 +15,36 @@ var sphereRadiuses = [
 
 //// Render view
 const vsSource =
-	`#version 300 es
-
+	`
 	precision highp float;
 
-	in vec4 vertexPosition;
-	in vec3 vertexTextureCoord;
+	attribute vec4 vertexPosition;
+	attribute vec3 vertexTextureCoord;
 
-	out vec4 vPosition;
-	out vec3 vTextureCoord;
+	varying vec3 vTextureCoord;
 
 	void main(void) {
-		vPosition = vertexPosition;
-		gl_Position = vPosition;
+		gl_Position = vertexPosition;
 		vTextureCoord = vertexTextureCoord;
 	}
 `;
 // Fragment shader program
 const fsSource =
-	`#version 300 es
+	`
 	#define M_PI 3.1415926535897932384626433832795
-	#define NUM_SPHERE 16
+	#define NUM_SPHERE 3
 
 	precision highp float;
 
 	uniform sampler2D texture;
 	uniform mat3 textureMatrix;
 	uniform vec3 cameraPosition;
-	uniform int numberOfSphere;
 	uniform vec3 spherePosition[NUM_SPHERE];
 	uniform float sphereRadius[NUM_SPHERE];
 	//uniform vec3 sphereColor;
 	uniform float wallOffset; // the distance from center
 
-	in vec4 vPosition;
-	in vec3 vTextureCoord;
-
-	out vec4 fragmentColor;
+	varying vec3 vTextureCoord;
 
 	float random(vec2 v) {
 		return fract(sin(dot(v, vec2(12.9898, 78.233))) * 43758.5453);
@@ -76,7 +69,7 @@ const fsSource =
 		vec3 spherePosition_min = vec3(0.0);
 		vec3 sphereReflectPoint_min = vec3(0.0);
 		float r_min_sphere = d_max;
-		for (int n = 0; n < numberOfSphere; n++) {
+		for (int n = 0; n < NUM_SPHERE; n++) {
 			vec3 sphereVector = spherePosition[n] - traceStart.origin;
 			vec3 r_sphereRay = cross(sphereVector, traceStart.ray);
 			vec3 sphereReflectPoint =
@@ -92,17 +85,6 @@ const fsSource =
 				spherePosition_min = spherePosition[n];
 				sphereReflectPoint_min = sphereReflectPoint;
 			}
-			/*
-			float cond = step(0.0, r_min_sphere - r_min);
-			spherePosition_min = mix(
-			    spherePosition_min,
-			    spherePosition[n],
-			    cond);
-			sphereReflectPoint_min = mix(
-			    sphereReflectPoint_min,
-			    sphereReflectPoint,
-			    cond);
-			*/
 		}
 
 		////
@@ -202,7 +184,7 @@ const fsSource =
 			}
 			color += trace.col / max_iter;
 		}
-		fragmentColor = vec4(color, 1.0);
+		gl_FragColor = vec4(color, 1.0);
 	}
 `;
 
@@ -240,7 +222,6 @@ function main() {
 			textureMatrix: gl.getUniformLocation(renderShaderProgram, 'textureMatrix'),
 			cameraPosition: gl.getUniformLocation(renderShaderProgram, 'cameraPosition'),
 			wallOffset: gl.getUniformLocation(renderShaderProgram, 'wallOffset'),
-			numberOfSphere: gl.getUniformLocation(renderShaderProgram, 'numberOfSphere'),
 			spherePosition: spherePositions.map((x, ind) => {
 				return gl.getUniformLocation(renderShaderProgram, 'spherePosition[' + ind + ']');
 			    }),
@@ -410,9 +391,6 @@ function drawScene(gl, renderProgramInfo, textures, screenBuffers)
 	gl.uniform1f(
 	    renderProgramInfo.uniformLocations.wallOffset,
 	    wallOffset);
-	gl.uniform1i(
-	    renderProgramInfo.uniformLocations.numberOfSphere,
-	    Math.min(spherePositions.length, sphereRadiuses.length));
 	for (let i = 0; i < spherePositions.length; i++) {
 		gl.uniform3fv(
 		    renderProgramInfo.uniformLocations.spherePosition[i],
