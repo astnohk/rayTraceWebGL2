@@ -209,9 +209,54 @@ const fsSource =
 
 
 
-window.onload = main;
+window.onload = init;
 
-function main() {
+function init() {
+	// Initialize HTML
+	// max iteration count
+	const max_iterInput = document.getElementById("maxIterationCount");
+	max_iterInput.value = max_iter;
+	max_iterInput.addEventListener(
+	    "change",
+	    function () {
+		    max_iter = parseFloat(max_iterInput.value);
+		    if (max_iter < 1.0) {
+			    max_iter = 1.0;
+		    }
+	    });
+	const max_iterInputIncrement = document.getElementById("maxIterationCountInc");
+	const max_iterIncrementer = () => { max_iter = parseFloat(max_iterInput.value) + 1.0; max_iterInput.value = max_iter; };
+	max_iterInputIncrement.addEventListener("mousedown", max_iterIncrementer);
+	max_iterInputIncrement.addEventListener("touchstart", max_iterIncrementer);
+	const max_iterInputDecrement = document.getElementById("maxIterationCountDec");
+	const max_iterDecrementer = () => { max_iter = Math.max(parseFloat(max_iterInput.value) - 1.0, 1.0); max_iterInput.value = max_iter; };
+	max_iterInputDecrement.addEventListener("mousedown", max_iterDecrementer);
+	max_iterInputDecrement.addEventListener("touchstart", max_iterDecrementer);
+	// max bound count
+	const max_boundInput = document.getElementById("maxBoundCount");
+	max_boundInput.value = max_bound;
+	max_boundInput.addEventListener(
+	    "change",
+	    function () {
+		    max_bound = parseInt(max_boundInput.value, 10);
+		    if (max_bound <= 0) {
+			    max_bound = 1;
+		    }
+	    });
+	const max_boundInputIncrement = document.getElementById("maxBoundCountInc");
+	const max_boundIncrementer = () => { max_bound = parseInt(max_boundInput.value, 10) + 1; max_boundInput.value = max_bound; };
+	max_boundInputIncrement.addEventListener("mousedown", max_boundIncrementer);
+	max_boundInputIncrement.addEventListener("touchstart", max_boundIncrementer);
+	const max_boundInputDecrement = document.getElementById("maxBoundCountDec");
+	const max_boundDecrementer = () => { max_bound = Math.max(parseInt(max_boundInput.value, 10) - 1, 1); max_boundInput.value = max_bound; };
+	max_boundInputDecrement.addEventListener("mousedown", max_boundDecrementer);
+	max_boundInputDecrement.addEventListener("touchstart", max_boundDecrementer);
+
+	// Start WebGL
+	glmain();
+}
+
+function glmain() {
 	const canvas = document.querySelector('#glcanvas');
 
 	// Get WebGL instance
