@@ -3,7 +3,7 @@
 var cameraPosition = [ 0.0, 0.0, -1.0 ];
 var wallOffset = 0.8;
 var spherePositions = [
-    [ 0.8, 0.0, 2.7 ],
+    [ 0.8, 0.0, 2.9 ],
     [ 0.0, -0.3, 2.9 ],
     [ -0.3, 0.0, 2.3 ],
     ];
@@ -12,6 +12,9 @@ var sphereRadiuses = [
     0.4,
     0.17,
     ];
+
+var max_iter = 64.0;
+var max_bound = 4;
 
 //// Render view
 const vsSource =
@@ -45,6 +48,8 @@ const fsSource =
 	uniform float sphereRadius[NUM_SPHERE];
 	//uniform vec3 sphereColor;
 	uniform float wallOffset; // the distance from center
+	uniform float max_iter;
+	uniform int max_bound;
 
 	in vec3 vTextureCoord;
 
@@ -77,7 +82,7 @@ const fsSource =
 			vec3 sphereVector = spherePosition[n] - traceStart.origin;
 			vec3 r_sphereRay = cross(sphereVector, traceStart.ray);
 			vec3 sphereReflectPoint =
-			    (dot(sphereVector, traceStart.ray) - sqrt(sphereRadius[n] * sphereRadius[n] - r_sphereRay * r_sphereRay))
+			    (dot(sphereVector, traceStart.ray) - sqrt(pow(sphereRadius[n], 2.0) - pow(length(r_sphereRay), 2.0)))
 			    * traceStart.ray + traceStart.origin;
 			float r_min = mix(
 			    length(sphereReflectPoint - traceStart.origin),
@@ -126,54 +131,56 @@ const fsSource =
 			trace.origin = sphereReflectPoint_min;
 			trace.ray = normalize(
 			    reflect(traceStart.ray, n)
-			    + 0.25 * vec3(
-				random(vec2(traceStart.ray.x, seed)),
-				random(vec2(traceStart.ray.y, seed)),
-				random(vec2(traceStart.ray.z, seed)))
-			    );
-			trace.col += vec3(0.0, 0.0, 0.0) * traceStart.reflection;
-			trace.reflection *= vec3(0.4 + 0.5 * length(cross(trace.ray, n)));
-		} else {
-			trace.origin = vec3(0.0);
-			trace.ray = vec3(0.0);
-			vec3 col_wall = vec3(0.0);
-			vec3 normal = vec3(0.0);
-			float reflection = 0.0;
-			// Top
-			float cond = step(0.0, r_min_wall - r_top);
-			col_wall += cond * vec3(0.9, 0.0, 0.0);
-			trace.ray += cond * reflect(traceStart.ray, vec3(0.0, -1.0, 0.0));
-			normal += cond * vec3(0.0, -1.0, 0.0);
-			reflection += cond * 0.8;
-			// Bottom
-			cond = step(0.0, r_min_wall - r_bottom);
-			//col_wall += cond * vec3(0.9, 0.9, 0.0);
-			trace.ray += cond * reflect(traceStart.ray, vec3(0.0, 1.0, 0.0));
-			normal += cond * vec3(0.0, 1.0, 0.0);
-			reflection += cond * 0.3;
-			// Left
-			cond = step(0.0, r_min_wall - r_left);
-			col_wall += cond * vec3(0.0, 0.9, 0.0);
-			trace.ray += cond * reflect(traceStart.ray, vec3(1.0, 0.0, 0.0));
-			normal += cond * vec3(1.0, 0.0, 0.0);
-			reflection += cond * 0.8;
-			// Right
-			cond = step(0.0, r_min_wall - r_right);
-			col_wall += cond * vec3(0.0, 0.0, 0.9);
-			trace.ray += cond * reflect(traceStart.ray, vec3(-1.0, 0.0, 0.0));
-			normal += cond * vec3(-1.0, 0.0, 0.0);
-			reflection += cond * 0.8;
-			// result
-			trace.origin = traceStart.ray * r_min_wall + traceStart.origin;
-			trace.ray = normalize(
-			    trace.ray
 			    + 0.0625 * vec3(
 				random(vec2(traceStart.ray.x, seed)),
 				random(vec2(traceStart.ray.y, seed)),
 				random(vec2(traceStart.ray.z, seed)))
 			    );
+			trace.col += vec3(0.0, 0.0, 0.0) * traceStart.reflection;
+			float f0 = 0.7;
+			trace.reflection *= vec3(0.5, 0.6, 1.0)
+			    * vec3(f0 * (1.0 + pow(dot(trace.ray, n), 5.0)) + (1.0 - f0) * pow(1.0 - dot(trace.ray, n), 5.0));
+		} else {
+			trace.origin = vec3(0.0);
+			trace.ray = vec3(0.0);
+			vec3 col_wall = vec3(0.0);
+			vec3 normal = vec3(0.0);
+			vec3 reflection = vec3(0.0);
+			// Top
+			float cond = step(0.0, r_min_wall - r_top);
+			col_wall += cond * vec3(0.95);
+			trace.ray += cond * reflect(traceStart.ray, vec3(0.0, -1.0, 0.0));
+			normal += cond * vec3(0.0, -1.0, 0.0);
+			reflection += cond * vec3(0.6);
+			// Bottom
+			cond = step(0.0, r_min_wall - r_bottom);
+			col_wall += cond * vec3(0.0);
+			trace.ray += cond * reflect(traceStart.ray, vec3(0.0, 1.0, 0.0));
+			normal += cond * vec3(0.1, 1.0, 0.1);
+			reflection += cond * vec3(0.2);
+			// Left
+			cond = step(0.0, r_min_wall - r_left);
+			col_wall += cond * 0.2 * vec3(0.1, 1.0, 0.1);
+			trace.ray += cond * reflect(traceStart.ray, vec3(1.0, 0.0, 0.0));
+			normal += cond * vec3(1.0, 0.0, 0.0);
+			reflection += cond * vec3(0.1, 1.0, 0.1);
+			// Right
+			cond = step(0.0, r_min_wall - r_right);
+			col_wall += cond * 0.2 * vec3(0.2, 0.2, 1.0);
+			trace.ray += cond * reflect(traceStart.ray, vec3(-1.0, 0.0, 0.0));
+			normal += cond * vec3(-1.0, 0.0, 0.0);
+			reflection += cond * vec3(0.3, 0.3, 1.0);
+			// result
+			trace.origin = traceStart.ray * r_min_wall + traceStart.origin;
+			trace.ray = normalize(
+			    trace.ray
+			    + 0.0125 * vec3(
+				random(vec2(traceStart.ray.x, seed)),
+				random(vec2(traceStart.ray.y, seed)),
+				random(vec2(traceStart.ray.z, seed)))
+			    );
 			trace.col += col_wall * traceStart.reflection;
-			trace.reflection *= reflection * vec3(0.5 + 0.5 * pow(length(cross(trace.ray, normal)), 50.0));
+			trace.reflection *= reflection * vec3(0.8 + 0.2 * pow(1.0 - dot(trace.ray, normal), 5.0));
 		}
 
 		// saturation of color
@@ -182,9 +189,6 @@ const fsSource =
 	}
 
 	void main(void) {
-		const float max_iter = 64.0;
-		const int max_bound = 4;
-
 		vec3 color = vec3(0.0);
 		for (float s = 0.0; s < max_iter; s += 1.0) {
 			TraceData trace;
@@ -244,6 +248,8 @@ function main() {
 			sphereRadius: sphereRadiuses.map((x, ind) => {
 				return gl.getUniformLocation(renderShaderProgram, 'sphereRadius[' + ind + ']');
 			    }),
+			max_iter: gl.getUniformLocation(renderShaderProgram, 'max_iter'),
+			max_bound: gl.getUniformLocation(renderShaderProgram, 'max_bound'),
 		},
 	};
 
@@ -410,6 +416,12 @@ function drawScene(gl, renderProgramInfo, textures, screenBuffers)
 	gl.uniform1i(
 	    renderProgramInfo.uniformLocations.numberOfSphere,
 	    Math.min(spherePositions.length, sphereRadiuses.length));
+	gl.uniform1f(
+	    renderProgramInfo.uniformLocations.max_iter,
+	    max_iter);
+	gl.uniform1i(
+	    renderProgramInfo.uniformLocations.max_bound,
+	    max_bound);
 	for (let i = 0; i < spherePositions.length; i++) {
 		gl.uniform3fv(
 		    renderProgramInfo.uniformLocations.spherePosition[i],
