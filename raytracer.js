@@ -13,8 +13,9 @@ var sphereRadiuses = [
     0.17,
     ];
 
-var max_iter = 64.0;
+var max_iter = 32.0;
 var max_bound = 4;
+
 
 //// Render view
 const vsSource =
