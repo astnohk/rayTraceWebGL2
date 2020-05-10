@@ -41,6 +41,7 @@ const fsSource =
 
 	precision highp float;
 
+	uniform float seed;
 	uniform sampler2D texture;
 	uniform mat3 textureMatrix;
 	uniform vec3 cameraPosition;
@@ -121,14 +122,14 @@ const fsSource =
 			trace.origin = sphereReflectPoint_min;
 			trace.ray = normalize(mix(
 			    reflect(traceStart.ray, n) + 0.00625 * normalize(vec3(
-				random(vec2(traceStart.ray.x, r_min_sphere + iter)),
-				random(vec2(traceStart.ray.y, r_min_sphere + iter)),
-				random(vec2(traceStart.ray.z, r_min_sphere + iter))
+				random(vec2(traceStart.ray.x, seed + iter)),
+				random(vec2(traceStart.ray.y, seed + iter)),
+				random(vec2(traceStart.ray.z, seed + iter))
 			    )),
 			    n + 0.9 * normalize(vec3(
-				random(vec2(traceStart.ray.x, r_min_sphere + iter)),
-				random(vec2(traceStart.ray.y, r_min_sphere + iter)),
-				random(vec2(traceStart.ray.z, r_min_sphere + iter))
+				random(vec2(traceStart.ray.x, seed + iter)),
+				random(vec2(traceStart.ray.y, seed + iter)),
+				random(vec2(traceStart.ray.z, seed + iter))
 			    )),
 			    step(1.0, iter)));
 			trace.col += vec3(0.0, 0.0, 0.0) * traceStart.reflection;
@@ -174,14 +175,14 @@ const fsSource =
 			trace.origin = traceStart.ray * r_min_wall + traceStart.origin;
 			trace.ray = normalize(mix(
 			    reflect(incidentRay, normal) + 0.00625 * normalize(vec3(
-				random(vec2(traceStart.ray.x, r_min_wall + iter)),
-				random(vec2(traceStart.ray.y, r_min_wall + iter)),
-				random(vec2(traceStart.ray.z, r_min_wall + iter))
+				random(vec2(traceStart.ray.x, seed + iter)),
+				random(vec2(traceStart.ray.y, seed + iter)),
+				random(vec2(traceStart.ray.z, seed + iter))
 			    )),
 			    normal + 0.9 * normalize(vec3(
-				random(vec2(traceStart.ray.x, r_min_wall + iter)),
-				random(vec2(traceStart.ray.y, r_min_wall + iter)),
-				random(vec2(traceStart.ray.z, r_min_wall + iter))
+				random(vec2(traceStart.ray.x, seed + iter)),
+				random(vec2(traceStart.ray.y, seed + iter)),
+				random(vec2(traceStart.ray.z, seed + iter))
 			    )),
 			    step(1.0, iter)));
 			trace.col += col_wall * traceStart.reflection;
@@ -291,6 +292,7 @@ function glmain() {
 			vertexTextureCoord: gl.getAttribLocation(renderShaderProgram, 'vertexTextureCoord'),
 		},
 		uniformLocations: {
+			seed: gl.getUniformLocation(renderShaderProgram, 'seed'),
 			texture: gl.getUniformLocation(renderShaderProgram, 'texture'),
 			textureMatrix: gl.getUniformLocation(renderShaderProgram, 'textureMatrix'),
 			cameraPosition: gl.getUniformLocation(renderShaderProgram, 'cameraPosition'),
@@ -454,6 +456,9 @@ function drawScene(gl, renderProgramInfo, textures, screenBuffers)
 	textureMatrix[0] = 0.5; textureMatrix[4] = -0.5; // Scale
 	textureMatrix[6] = 0.5; textureMatrix[7] = 0.5; // Shift
 
+	gl.uniform1f(
+	    renderProgramInfo.uniformLocations.seed,
+	    Math.random() * 10.0);
 	gl.uniform1i(
 	    renderProgramInfo.uniformLocations.texture,
 	    0);
